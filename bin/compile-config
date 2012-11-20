@@ -1,0 +1,172 @@
+#!/usr/bin/env ruby
+# Write your logstash config files in Ruby.
+#
+# Usage: compile-config <path/to/config.ru>
+#
+# Here's a sample config.ru:
+#
+# input {
+#   stdin(
+#     :type => "stdin"
+#   )
+# }
+#
+# output {
+#   stdout {
+#   }
+# }
+#
+# Which would compile to:
+#
+# input {
+#   stdin {
+#     type => "stdin"
+#   }
+# }
+#
+# output {
+#   stdout {
+#   }
+# }
+#
+# (The following interface is a bit janky, and hence may change.)  You
+# can pass options which will be accessible in your templates with a
+# "-a key=value" on the command line, which would set "options[:key] =
+# value".
+require 'optparse'
+
+module CompileConfig
+  class DSL
+    attr_reader :options
+
+    def self.compile(target, options)
+      dsl = self.new(options)
+      dsl._compile(target)
+    end
+
+    def initialize(options)
+      @options = options
+    end
+
+    def _compile(target)
+      contents = File.read(target)
+      @output = []
+      @level = 0
+      eval(contents, binding, target, 0)
+      @output.join.chomp
+    end
+
+    # DSL (todo: figure out how to cut out the helper methods
+
+    def method_missing(method, *args, &blk)
+      if args.length == 0
+        raise "Must supply block or a single argument to #{method}" unless blk
+      elsif args.length > 1
+        raise "At most 1 argument allowed for #{method}"
+      end
+
+      _emit("#{method} {")
+      if args.length == 1
+        _emit_hash(args.first)
+      else
+        _nested(&blk)
+      end
+      _emit('}')
+      _emit('') if @level == 0
+    end
+
+    def assert(condition, message, hard=false)
+      return unless condition
+      if hard
+        raise message
+      else
+        $log.error("Assertion failure: #{message}" + "\n  " + caller.join("\n  "))
+      end
+    end
+
+    private
+
+    def _nested(&blk)
+      @level += 1
+      begin
+        blk.call
+      ensure
+        @level -= 1
+      end
+    end
+
+    def _emit(string)
+      raise "Can only emit strings" unless string.kind_of?(String)
+      @output << ' ' * 2 * @level
+      @output << string
+      @output << "\n"
+    end
+
+    def _emit_hash(hash)
+      raise "Invalid argument (must be a hash): #{hash.inspect}" unless hash.kind_of?(Hash)
+      hash.sort_by {|key, value| key.to_s}.each do |key, value|
+        _nested {_emit("#{key} => #{_emit_value(value)}")}
+      end
+    end
+
+    # Don't allow getting too fancy
+    def _emit_value(value)
+      case value
+      when String, Array
+        value.inspect
+      when true, false, Numeric
+        value
+      else
+        raise "Not sure how to emit value: #{value.inspect}"
+      end
+    end
+  end
+
+  class Runner
+    def initialize(target, options)
+      @target = target
+      @options = options
+    end
+
+    def run
+      puts DSL.compile(@target, @options)
+    end
+  end
+end
+
+def main
+  options = {}
+  optparse = OptionParser.new do |opts|
+    opts.banner = "Usage: #{$0} [options]"
+
+    opts.on('-h', '--help', 'Display this message') do
+      puts opts
+      exit(1)
+    end
+
+    opts.on('-a KEY=VALUE', '--arg', 'Argument') do |kv|
+      key, value = kv.split('=', 2)
+      value ||= true
+      options[key.to_sym] = value
+    end
+  end
+  optparse.parse!
+
+  if ARGV.length != 1
+    puts optparse
+    return 1
+  end
+
+  runner = CompileConfig::Runner.new(ARGV[0], options)
+  runner.run
+  return 0
+end
+
+if $0 == __FILE__
+  ret = main
+  begin
+    exit(ret)
+  rescue TypeError
+    exit(0)
+  end
+end
