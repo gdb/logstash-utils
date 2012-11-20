@@ -121,15 +121,17 @@ module CompileConfig
     def _emit_hash(hash)
       raise "Invalid argument (must be a hash): #{hash.inspect}" unless hash.kind_of?(Hash)
       hash.sort_by {|key, value| key.to_s}.each do |key, value|
-        _nested {_emit("#{key} => #{_emit_value(value)}")}
+        _nested {_emit("#{key} => #{_emitable_value(value)}")}
       end
     end
 
     # Don't allow getting too fancy
-    def _emit_value(value)
+    def _emitable_value(value)
       case value
-      when String, Array
-        value.inspect
+      when String
+        '"' + value.gsub('"', '\\"') + '"'
+      when Array
+        '[' + value.map {|member| _emitable_value(member)}.join(', ') + ']'
       when true, false, Numeric
         value
       else
