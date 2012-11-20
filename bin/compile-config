@@ -169,7 +169,7 @@ def main
     opts.on('-a KEY=VALUE', '--arg', 'Argument') do |kv|
       key, value = kv.split('=', 2)
       value ||= true
-      args[key.to_sym] = value
+      options[:args][key.to_sym] = value
     end
 
     opts.on('-o OUTFILE', '--output', 'Output to file') do |outfile|
