@@ -30,9 +30,9 @@
 # }
 #
 # (The following interface is a bit janky, and hence may change.)  You
-# can pass options which will be accessible in your templates with a
-# "-a key=value" on the command line, which would set "options[:key] =
-# value".
+# can pass values to your templates with a "-a key=value" on the
+# command line, which would make "args[:key]" in your tempalte return
+# "value".
 require 'optparse'
 require 'logger'
 
