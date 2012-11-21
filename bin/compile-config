@@ -121,7 +121,7 @@ module CompileConfig
     def _emit_hash(hash)
       raise "Invalid argument (must be a hash): #{hash.inspect}" unless hash.kind_of?(Hash)
       hash.sort_by {|key, value| key.to_s}.each do |key, value|
-        _nested {_emit("#{key} => #{_emitable_value(value)}")}
+        _nested {_emit("#{key} => #{_emitable_value(value)}")} unless value.nil?
       end
     end
 
