@@ -1,4 +1,5 @@
+require 'logstash-utils/dsl'
 require 'logstash-utils/version'
 
-module Logstash::Utils
+module LogstashUtils
 end
